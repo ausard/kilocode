@@ -32,6 +32,7 @@ import { createOpenAI } from "@ai-sdk/openai"
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 import { createOpenRouter, type LanguageModelV2 } from "@openrouter/ai-sdk-provider"
 import { createOpenaiCompatible as createGitHubCopilotOpenAICompatible } from "./sdk/copilot"
+import { createSapAiCore } from "./sdk/sap-ai-core" // kilocode_change
 import { createKilo } from "@kilocode/kilo-gateway" // kilocode_change
 import { createXai } from "@ai-sdk/xai"
 import { createMistral } from "@ai-sdk/mistral"
@@ -114,6 +115,7 @@ export namespace Provider {
     "@gitlab/gitlab-ai-provider": createGitLab,
     // @ts-ignore (TODO: kill this code so we dont have to maintain it)
     "@ai-sdk/github-copilot": createGitHubCopilotOpenAICompatible,
+    "@sap-ai-sdk/orchestration": createSapAiCore, // kilocode_change
   }
 
   type CustomModelLoader = (sdk: any, modelID: string, options?: Record<string, any>) => Promise<any>
@@ -411,6 +413,7 @@ export namespace Provider {
         },
       }
     },
+    // kilocode_change start - SAP AI Core provider using custom SDK
     "sap-ai-core": async () => {
       const auth = await Auth.get("sap-ai-core")
       // TODO: Using process.env directly because Env.set only updates a shallow copy (not process.env),
@@ -430,11 +433,12 @@ export namespace Provider {
       return {
         autoload: !!envServiceKey,
         options: envServiceKey ? { deploymentId, resourceGroup } : {},
-        async getModel(sdk: any, modelID: string) {
+        async getModel(sdk: ReturnType<typeof createSapAiCore>, modelID: string) {
           return sdk(modelID)
         },
       }
     },
+    // kilocode_change end
     zenmux: async () => {
       return {
         autoload: false,
