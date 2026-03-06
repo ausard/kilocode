@@ -870,7 +870,8 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
       pendingSessionRefresh: this.pendingSessionRefresh,
       connectionState: this.connectionState,
       listSessions: client
-        ? (dir: string) => client.session.list({ directory: dir }, { throwOnError: true }).then(({ data }) => data)
+        ? (dir: string) =>
+            client.session.list({ directory: dir, roots: true }, { throwOnError: true }).then(({ data }) => data)
         : null,
       sessionDirectories: this.sessionDirectories,
       workspaceDirectory: this.getWorkspaceDirectory(),
@@ -1612,6 +1613,10 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
 
       console.log("[Kilo New] KiloProvider: 🔐 Login successful")
 
+      await this.client.global.dispose().catch((e: unknown) =>
+        console.warn("[Kilo New] KiloProvider: global.dispose() after login failed:", e),
+      )
+
       // Step 4: Fetch profile and push to webview
       const { data: profileData } = await this.client.kilo.profile(undefined, { throwOnError: true })
       this.postMessage({ type: "profileData", data: profileData })
@@ -1656,6 +1661,10 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
       }
       return
     }
+
+    await this.client.global.dispose().catch((e: unknown) =>
+      console.warn("[Kilo New] KiloProvider: global.dispose() after org switch failed:", e),
+    )
 
     // Org switch succeeded — refresh profile and providers independently (best-effort)
     try {
@@ -1709,6 +1718,11 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         type: "profileData",
         data: null,
       })
+
+      await this.client.global.dispose().catch((e: unknown) =>
+        console.warn("[Kilo New] KiloProvider: global.dispose() after logout failed:", e),
+      )
+
     } catch (error) {
       console.error("[Kilo New] KiloProvider: ❌ Logout failed:", error)
       this.postMessage({
@@ -1716,6 +1730,8 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         message: getErrorMessage(error) || "Failed to logout",
       })
     }
+
+
   }
 
   /**
@@ -1803,6 +1819,21 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
   }
 
   /**
+   * Re-fetch all server-side state after an auth change (login/logout/org switch).
+   * After instance.dispose() clears the server cache, the next request to each
+   * endpoint will re-initialize with the current auth state.
+   * This mirrors the TUI's sync.bootstrap() pattern.
+   */
+  private async reloadAfterAuthChange(): Promise<void> {
+    await Promise.all([
+      this.fetchAndSendProviders(),
+      this.fetchAndSendAgents(),
+      this.fetchAndSendConfig(),
+      this.fetchAndSendNotifications(),
+    ])
+  }
+
+  /**
    * Handle SSE events from the CLI backend.
    * Filters events by project ID and tracked session IDs so each webview only sees its own sessions.
    */
@@ -1827,8 +1858,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
 
     // Refresh provider and agent lists when the server signals a state disposal
     if (event.type === "server.instance.disposed" || event.type === "global.disposed") {
-      void this.fetchAndSendProviders()
-      void this.fetchAndSendAgents()
+      void this.reloadAfterAuthChange();
       return
     }
 
@@ -2016,7 +2046,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
       iconsBaseUri: webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "assets", "icons")),
       title: "Kilo Code",
       port: this.connectionService.getServerInfo()?.port,
-      extraStyles: `.container { height: 100%; display: flex; flex-direction: column; height: 100vh; }`,
+      extraStyles: `.container { height: 100%; display: flex; flex-direction: column; height: 100vh; border-right: 1px solid var(--border-weak-base); }`,
     })
   }
 
