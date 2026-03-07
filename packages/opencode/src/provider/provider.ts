@@ -1260,7 +1260,7 @@ export namespace Provider {
       ]
       // kilocode_change start
       if (providerID.startsWith("kilo")) {
-        priority = ["auto-small"]
+        priority = ["kilo-auto/small"]
       }
       // kilocode_change end
       if (providerID.startsWith("github-copilot")) {
@@ -1301,8 +1301,8 @@ export namespace Provider {
     // kilocode_change start
     // Check if kilo provider is available before using it
     const kiloProvider = await state().then((state) => state.providers["kilo"])
-    if (kiloProvider && kiloProvider.models["auto-small"]) {
-      return getModel("kilo", "auto-small")
+    if (kiloProvider && kiloProvider.models["kilo-auto/small"]) {
+      return getModel("kilo", "kilo-auto/small")
     }
     // kilocode_change end
 
